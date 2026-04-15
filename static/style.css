@@ -1,0 +1,67 @@
+/* static/style.css */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #121212;
+    color: #ffffff;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.header {
+    background-color: #1e1e1e;
+    width: 100%;
+    text-align: center;
+    padding: 20px 0;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    margin-bottom: 30px;
+}
+
+h1 {
+    margin: 0;
+    color: #00d2ff;
+    letter-spacing: 1px;
+}
+
+.video-container {
+    border: 4px solid #333;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+    background-color: #000;
+}
+
+#video-stream {
+    display: block;
+    width: 640px;
+    height: 480px;
+    object-fit: cover;
+}
+
+.status-panel {
+    margin-top: 30px;
+    padding: 20px 40px;
+    background-color: #1e1e1e;
+    border-radius: 8px;
+    text-align: center;
+    min-width: 300px;
+    transition: all 0.3s ease;
+}
+
+.status-text {
+    font-size: 24px;
+    font-weight: bold;
+    color: #00ff00;
+}
+
+.alarm-active {
+    background-color: #4a0000;
+    border: 2px solid #ff0000;
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
+}
+
+.alarm-active .status-text {
+    color: #ff0000;
+}
