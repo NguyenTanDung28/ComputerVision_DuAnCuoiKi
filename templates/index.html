@@ -3,25 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ Thống Cảnh Báo Ngủ Gật Cho Tài Xế</title>
+    <title>Dashboard Giám Sát Tài Xế</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+    <div class="app-container">
+        <div class="video-section">
+            <div class="header">
+                <h1>HỆ THỐNG GIÁM SÁT THỜI GIAN THỰC</h1>
+            </div>
+            <div class="video-wrapper">
+                <img id="video-stream" src="/video_feed" alt="Camera Stream">
+            </div>
+        </div>
 
-    <div class="header">
-        <h1>GIÁM SÁT TÀI XẾ THỜI GIAN THỰC</h1>
-    </div>
+        <div class="sidebar">
+            <div id="statusPanel" class="status-card status-normal">
+                <h2>TRẠNG THÁI</h2>
+                <div id="statusText">BÌNH THƯỜNG</div>
+            </div>
 
-    <div class="video-container">
-        <img id="video-stream" src="/video_feed" alt="Camera Stream">
-    </div>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <span class="label">MẮT (EAR)</span>
+                    <span id="earVal" class="value">0.00</span>
+                </div>
+                <div class="metric-card">
+                    <span class="label">MIỆNG (MAR)</span>
+                    <span id="marVal" class="value">0.00</span>
+                </div>
+                <div class="metric-card">
+                    <span class="label">GẬT ĐẦU</span>
+                    <span id="pitchVal" class="value">0°</span>
+                </div>
+                <div class="metric-card">
+                    <span class="label">NGOÁI ĐẦU</span>
+                    <span id="yawVal" class="value">0°</span>
+                </div>
+            </div>
 
-    <div class="status-panel" id="statusPanel">
-        <div class="status-text" id="statusText">TRẠNG THÁI: BÌNH THƯỜNG</div>
+            <div class="controls-card">
+                <h3>BẢNG ĐIỀU KHIỂN</h3>
+                <div class="button-group">
+                    <button id="testAlarmBtn" class="btn btn-secondary">Test Còi</button>
+                    <button id="muteBtn" class="btn btn-danger">Tắt Âm</button>
+                </div>
+                <p class="hint">* Click bất kỳ đâu để kích hoạt âm thanh</p>
+            </div>
+        </div>
     </div>
 
     <audio id="alarmSound" src="/static/alarm_sound_effect.wav" preload="auto" loop></audio>
-
     <script src="/static/script.js"></script>
 </body>
 </html>

@@ -1,47 +1,45 @@
-/* static/script.js */
-const alarmSound = document.getElementById("alarmSound");
-const statusPanel = document.getElementById("statusPanel");
-const statusText = document.getElementById("statusText");
+const statusPanel = document.getElementById('statusPanel');
+const statusText = document.getElementById('statusText');
+const alarmSound = document.getElementById('alarmSound');
+const muteBtn = document.getElementById('muteBtn');
+const testBtn = document.getElementById('testAlarmBtn');
 
-let isPlaying = false;
+let isMuted = false;
 
-// Yêu cầu người dùng tương tác lần đầu để trình duyệt cho phép phát âm thanh
-document.body.addEventListener('click', function() {
-    if(alarmSound.paused) {
-        alarmSound.play().then(() => {
-            alarmSound.pause();
-            alarmSound.currentTime = 0;
-        }).catch(e => console.log("Lỗi khởi tạo audio:", e));
-    }
-}, { once: true });
+// Xử lý nút Mute
+muteBtn.addEventListener('click', () => {
+    isMuted = !isMuted;
+    muteBtn.innerText = isMuted ? "Bật Âm" : "Tắt Âm";
+    if (isMuted) alarmSound.pause();
+});
 
-// Vòng lặp lấy trạng thái từ server
-setInterval(async () => {
-    try {
-        const response = await fetch('/status');
-        const data = await response.json();
+// Xử lý nút Test còi
+testBtn.addEventListener('mousedown', () => alarmSound.play());
+testBtn.addEventListener('mouseup', () => { if(!isAlarming) alarmSound.pause(); });
 
-        if (data.alarm === true) {
-            statusPanel.classList.add("alarm-active");
-            statusText.innerText = "CẢNH BÁO: ĐANG NGỦ GẬT !!!";
+let isAlarming = false;
+
+function updateStatus() {
+    fetch('/status')
+        .then(response => response.json())
+        .then(data => {
+            isAlarming = data.alarm;
             
-            if (!isPlaying) {
-                alarmSound.play();
-                isPlaying = true;
-            }
-        } else {
-            statusPanel.classList.remove("alarm-active");
-            statusText.innerText = "TRẠNG THÁI: BÌNH THƯỜNG";
-            
-            if (isPlaying) {
+            // Cập nhật giao diện dựa trên alarm
+            if (isAlarming) {
+                statusPanel.className = "status-card status-danger";
+                statusText.innerText = "NGUY HIỂM: NGỦ GẬT!";
+                if (!isMuted) alarmSound.play();
+            } else {
+                statusPanel.className = "status-card status-normal";
+                statusText.innerText = "BÌNH THƯỜNG";
                 alarmSound.pause();
-                alarmSound.currentTime = 0;
-                isPlaying = false;
             }
-        }
-    } catch (error) {
-        console.error("Mất kết nối tới máy chủ:", error);
-        statusText.innerText = "MẤT KẾT NỐI CAMERA";
-        statusText.style.color = "orange";
-    }
-}, 500);
+
+            // Gán các giá trị thông số (Nếu bạn cập nhật API /status ở Python)
+            if(data.ear) document.getElementById('earVal').innerText = data.ear.toFixed(2);
+            if(data.mar) document.getElementById('marVal').innerText = data.mar.toFixed(2);
+        });
+}
+
+setInterval(updateStatus, 200); // Cập nhật mỗi 200ms
