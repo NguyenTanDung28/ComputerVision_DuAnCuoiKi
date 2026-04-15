@@ -18,6 +18,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 #Biến toàn cục lưu trạng thái còi báo động
 ALARM_ON = False
+CURRENT_EAR = 0.0
+CURRENT_MAR = 0.0
+CURRENT_PITCH = 0.0
+CURRENT_YAW = 0.0
 
 #Khởi tạo Mediapipe
 mp_face_mesh = mp.solutions.face_mesh
@@ -129,16 +133,17 @@ def get_head_pose(landmarks, frame_width, frame_height):
 
     return pitch, yaw, roll
 
-
 #===============================================
 #HÀM XỬ LÝ VIDEO & LOGIC CẢNH BÁO
 #===============================================
 def generate_frames():
-    global ALARM_ON #Khai báo sử dụng biến toàn cục
+    # 1. KHAI BÁO GLOBAL MỘT LẦN DUY NHẤT Ở ĐÂY
+    global ALARM_ON, CURRENT_EAR, CURRENT_MAR, CURRENT_PITCH, CURRENT_YAW
+    
     cap = cv.VideoCapture(0)
 
     #ĐỊHH NGHĨA NGƯỠNG CẢNH BÁO
-    EAR_THRESH = 0.18 #Mắt: Dưới 0.18 là nhắm mắt
+    EAR_THRESH = 0.08 #Mắt: Dưới 0.18 là nhắm mắt
     MAR_THRESH = 0.55 #Miệng: Trên 0.50 là há to (ngáp)
     PITCH_THRESH = -15 #Góc gật: Dưới -15 độ là gục đầu xuống
     YAW_THRESH = 25 #Góc quay: Quá 25 độ (trái/phải) là ngoái nhìn
@@ -154,85 +159,111 @@ def generate_frames():
             if not ret:
                 break
 
-            # frame_counter += 1
             frame = cv.flip(frame, 1) #Lật hình soi gương
 
             #Đổi hệ màu từ BGR (Chuẩn OpenCv) sang RGB (Chuẩn Mediapipe)
             rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
 
             #GỌI HÀM TÍNH TOÁN VÀ KIỂM TRA ĐIỀU KIỆN
-            results = face_mesh.process(rgb_frame)
             warning_msg = "" #Thông báo cảnh báo
 
-            #Nếu Camera thấy có khuôn mặt
-            if results.multi_face_landmarks:
-                for face_landmarks in results.multi_face_landmarks:
-                    landmarks = face_landmarks.landmark
+            faces = app_gpu.get(frame)
 
-                    #Đo lường 3 chỉ số
-                    left_ear = calculate_ear(landmarks, LEFT_EYE_INDICES)
-                    right_ear = calculate_ear(landmarks, RIGHT_EYE_INDICES)
-                    ear_avg = (left_ear + right_ear) / 2.0
+            if len(faces) == 0:
+                warning_msg = "KHONG NHAN KIEN DUOC KHUON MAT"
+                blink_start_time = 0
+                yawn_start_time = 0
+                distract_start_time = 0
+                ALARM_ON = False
+                
+                # Đưa thông số về 0 để hiển thị trên Web (Đã xóa chữ global ở đây)
+                CURRENT_EAR = 0.0
+                CURRENT_MAR = 0.0
+                CURRENT_PITCH = 0.0
+                CURRENT_YAW = 0.0
+            else:
+                results = face_mesh.process(rgb_frame)
+                #Nếu Camera thấy có khuôn mặt
+                if results.multi_face_landmarks:
+                    for face_landmarks in results.multi_face_landmarks:
+                        landmarks = face_landmarks.landmark
 
-                    mar = calculate_mar(landmarks, MOUTH_INDICES)
-                    pitch, yaw, roll = get_head_pose(landmarks, frame.shape[1], frame.shape[0])
+                        #Đo lường 3 chỉ số
+                        left_ear = calculate_ear(landmarks, LEFT_EYE_INDICES)
+                        right_ear = calculate_ear(landmarks, RIGHT_EYE_INDICES)
+                        ear_avg = (left_ear + right_ear) / 2.0
 
-                    #In số liệu ra màn hình để test (Có thể bỏ nếu hoàn thiện)
-                    cv.putText(frame, f"EAR: {ear_avg:.2f} | MAR: {mar:.2f}", (10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-                    cv.putText(frame, f"Pitch: {pitch:.0f} | Yaw: {yaw:.0f}", (10, 60), cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+                        mar = calculate_mar(landmarks, MOUTH_INDICES)
+                        pitch, yaw, roll = get_head_pose(landmarks, frame.shape[1], frame.shape[0])
 
-                    #XÉT ĐIỀU KIỆN
-                    #1. Chống ngủ gật
-                    if ear_avg < EAR_THRESH:
-                        if mar < MAR_THRESH:
-                            if blink_start_time == 0:
-                                blink_start_time = time.time()
-                            #Nếu nhắm mắt liên tục quá 5 giây
-                            elif time.time() - blink_start_time >= 1.0:
-                                warning_msg = "CANH BAO: BAN DANG NGU GAT!"
-                                ALARM_ON = True
-                    else:
-                        blink_start_time = 0 #Reset bộ đếm
-                        ALARM_ON = False
-                    
-                    #2. Chống ngáp ngủ
-                    if mar > MAR_THRESH:
-                        if yawn_start_time == 0:
-                            yawn_start_time = time.time()
-                        elif time.time() - yawn_start_time >= 1.5: 
-                            warning_msg = "DANG NGAP"
-                    else:
-                        yawn_start_time = 0
+                        # Lưu giá trị ra biến toàn cục (Đã xóa chữ global ở đây)
+                        CURRENT_EAR = ear_avg
+                        CURRENT_MAR = mar
+                        CURRENT_PITCH = pitch
+                        CURRENT_YAW = yaw
 
-                    #3. Chống mất tập trung
-                    if pitch < PITCH_THRESH or abs(yaw) > YAW_THRESH:
-                        if distract_start_time == 0:
-                            distract_start_time = time.time()
-                        elif time.time() - distract_start_time >= 4.0:
-                            warning_msg = "DANG MAT TAP TRUNG"
-                    else:
-                        distract_start_time = 0
-            
+                        #In số liệu ra màn hình để test
+                        cv.putText(frame, f"EAR: {ear_avg:.2f} | MAR: {mar:.2f}", (10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+                        cv.putText(frame, f"Pitch: {pitch:.0f} | Yaw: {yaw:.0f}", (10, 60), cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+
+                        #XÉT ĐIỀU KIỆN
+                        #1. Chống ngủ gật
+                        if ear_avg < EAR_THRESH:
+                            if mar < MAR_THRESH:
+                                if blink_start_time == 0:
+                                    blink_start_time = time.time()
+                                #Nếu nhắm mắt liên tục quá 1 giây
+                                elif time.time() - blink_start_time >= 1.0:
+                                    warning_msg = "CANH BAO: BAN DANG NGU GAT!"
+                                    ALARM_ON = True
+                        else:
+                            blink_start_time = 0 #Reset bộ đếm
+                            ALARM_ON = False
+                        
+                        #2. Chống ngáp ngủ
+                        if mar > MAR_THRESH:
+                            if yawn_start_time == 0:
+                                yawn_start_time = time.time()
+                            elif time.time() - yawn_start_time >= 1.5: 
+                                warning_msg = "DANG NGAP"
+                        else:
+                            yawn_start_time = 0
+
+                        #3. Chống mất tập trung
+                        if pitch < PITCH_THRESH or abs(yaw) > YAW_THRESH:
+                            if distract_start_time == 0:
+                                distract_start_time = time.time()
+                            elif time.time() - distract_start_time >= 3.0:
+                                warning_msg = "DANG MAT TAP TRUNG"
+                        else:
+                            distract_start_time = 0
+
+                else:
+                    # TRƯỜNG HỢP ĐẶC BIỆT: InsightFace thấy người, nhưng MediaPipe không thấy!
+                    if distract_start_time == 0:
+                        distract_start_time = time.time()
+                    elif time.time() - distract_start_time >= 2.0: 
+                        warning_msg = "DANG MAT TAP TRUNG (QUAY GOC HEP)"
+                
             #KÍCH HOẠT BÁO ĐỘNG TRÊN MÀN HÌNH
             if warning_msg != "":
                 frame_height, frame_width = frame.shape[:2]
                 font = cv.FONT_HERSHEY_SIMPLEX
-                font_scale = 0.6  # <-- Sửa số này để chỉnh to nhỏ (0.6 là cỡ vừa phải)
+                font_scale = 0.6 
                 thickness = 2
                 color = (0, 0, 255)
                 (text_width, text_height), baseline = cv.getTextSize(warning_msg, font, font_scale, thickness)
-                margin = 15 # Cách lề 15 pixel cho đỡ sát viền
+                margin = 15 
                 x = frame_width - text_width - margin
                 y = text_height + margin
                 cv.putText(frame, warning_msg, (int(x), int(y)), font, font_scale, color, thickness, cv.LINE_AA)
 
             _, buffer = cv.imencode('.jpg', frame)
             yield (b'--frame\r\n'
-                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+                   b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
     
     finally:
         cap.release()
-
 
 # ==========================================
 # CÁC ĐƯỜNG DẪN WEB (API ENDPOINTS)
@@ -252,9 +283,16 @@ def video_feed():
     return StreamingResponse(generate_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
 
 # 3. Đường dẫn gửi trạng thái còi báo động (Không bị thụt lề)
+
 @app.get("/status")
 def get_status():
-    return JSONResponse({"alarm": ALARM_ON})
+    return JSONResponse({
+        "alarm": ALARM_ON,
+        "ear": CURRENT_EAR,
+        "mar": CURRENT_MAR,
+        "pitch": CURRENT_PITCH,
+        "yaw": CURRENT_YAW
+    })
 
 # Lệnh khởi động server Web
 if __name__ == "__main__":
